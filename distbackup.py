@@ -239,6 +239,7 @@ class SyncBackup:
 		"""FTP handler
 		When rsync is not available...
 		"""
+		# TODO
 		#import ftplib
 		#session = ftplib.FTP('server.address.com','USERNAME','PASSWORD')
 		#file = open('local_filename','rb')
@@ -410,7 +411,7 @@ class ReportBackup:
 		value = getVars(value, settings, section)
 
 		# Return a string with some tiny processing before
-		return value.replace('\r\n', '\n').replace('\r', '\n').replace('\n_\n', '\n\n').rstrip('_').replace('\n', '\r\n')
+		return value.replace('\r\n', '\n').replace('\r', '\n').replace('\n_\n', '\n\n').strip('_').replace('\n', '\r\n')
 
 	@staticmethod
 	def disk(settings, section):
@@ -560,8 +561,9 @@ def cleanBackup(settings, section):
 	"""Clean Backup
 	"""
 
+	# TODO
 	"""
-# Original code
+# Original code from "hdbackup"
 BACKUP_DIR="/home/backup/test/"
 DAYS="5"
 LOCALDAYS="2"
@@ -731,7 +733,7 @@ def getTextResult(settings, section, data):
 
 	# Size
 	size = ""
-	if data['ret'].has_key('file') or data['ret'].has_key('files'):
+	if type(data['ret']) is dict and (data['ret'].has_key('file') or data['ret'].has_key('files')):
 		files = data['ret']['file'] if data['ret'].has_key('file') else data['ret']['files']
 		totalsize = 0
 		if type(files) is str:
