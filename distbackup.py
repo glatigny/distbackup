@@ -30,12 +30,12 @@ class DatabaseBackup:
 
 		if not handler in ['mysql','pgsql','mongodb']:
 			return False
-		
+
 		archive_format = 'gz'
 		output_folder = settings.get('default', 'output')
 		output_filename = settings.get(section, 'output') + '.' + archive_format
 		output_file = os.path.join(output_folder, output_filename)
-		
+
 		# Call the right handler
 		syncMethod = getattr(DatabaseBackup, handler)
 		return syncMethod(settings, section, output_file)
@@ -58,7 +58,7 @@ class DatabaseBackup:
 		if debug:
 			print DBG_MSG + "* MySQL dump -> " + output_file + DBG_MSG_END
 			return {'file': output_file}
-		
+
 		# Processing the dump
 		mysqldump = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 		dump_output = mysqldump.communicate()[0]
@@ -70,7 +70,7 @@ class DatabaseBackup:
 		return {
 			'file': output_file
 		}
-	
+
 	@staticmethod
 	def pgsql(settings, section, output_file):
 		params = ['mysqldump']
@@ -78,12 +78,12 @@ class DatabaseBackup:
 			params = ['pg_dumpall']
 		else:
 			params = ['pg_dump', settings.get(section, 'database')]
-			
+
 		# Debug mode
 		if debug:
 			print DBG_MSG + "* PostgreSQL dump -> " + output_file + DBG_MSG_END
 			return {'file': output_file}
-		
+
 		# Processing the dump
 		pgdump = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 		dump_output = pgdump.communicate()[0]
@@ -98,7 +98,7 @@ class DatabaseBackup:
 
 	@staticmethod
 	def mongodb(settings, section):
-		
+
 		if not settings.has_option(section, 'database') or settings.get(section, 'database') == 'all':
 			params = ['mongodump', '--out', folder]
 		else:
@@ -108,7 +108,7 @@ class DatabaseBackup:
 		if debug:
 			print DBG_MSG + "* MongoDB dump -> " + output_file + DBG_MSG_END
 			return {'file': output_file}
-		
+
 		# Processing the dump
 		# TODO
 
@@ -184,7 +184,7 @@ class SyncBackup:
 		date = datetime.datetime.now().strftime("%Y-%m-%d")
 		for group in groups:
 			for f in groups[group]:
-				if not os.path.exists(f) or not os.path.isfile(f):
+				if not debug and (not os.path.exists(f) or not os.path.isfile(f)):
 					continue
 				(filename, ext) = splitext(os.path.basename(f))
 				dest = os.path.join(archive_folder, group, filename + '_' + date + ext)
@@ -201,13 +201,15 @@ class SyncBackup:
 		if not settings.has_option(section, 'dest'):
 			return False
 		dest = settings.get(section, 'dest')
-		if not os.path.exists(dest) or not os.path.is_dir(dest):
-			return False
 
 		# Debug mode
 		if debug:
 			print DBG_MSG + "* Copy -> " + dest + "\n" + "\n".join([x[0] for x in seqfiles]) + DBG_MSG_END
 			return True
+
+		# Check
+		if not os.path.exists(dest) or not os.path.is_dir(dest):
+			return False
 
 		# Performing the copy
 		ret = subprocess.call(['cp'] + [x[0] for x in seqfiles] + [dest])
@@ -220,7 +222,7 @@ class SyncBackup:
 		"""
 		if not settings.has_option(section, 'host'):
 			return False
-			
+
 		host = settings.get(section, 'host')
 
 		# Debug mode
@@ -301,12 +303,12 @@ class SvnBackup:
 			'/',
 			svn_folder.lstrip('/')
 		]
-	
+
 		# Debug mode
 		if debug:
 			print DBG_MSG + "* Archive SVN " + svn_folder + " -> " + output_file + DBG_MSG_END
 			return True
-		
+
 		# Processing the backup
 		ret = subprocess.call(params)
 
@@ -330,7 +332,7 @@ class SvnBackup:
 		err_code = subprocess.call([svnadmin, "hotcopy", folder, dest_folder, "--clean-logs"])
 		if err_code != 0:
 			return folder
-		return dest_folder	
+		return dest_folder
 
 	# For clearing away read-only directories (imported function)
 	@staticmethod
@@ -409,9 +411,7 @@ class ReportBackup:
 				return False
 			value = settings.get(section, key)
 
-		reg = re.compile(r'{([\s\w\.\-\:\%]+)}', re.UNICODE)
-		for match in reg.finditer(value):
-			value = value.replace('{'+match.group(1)+'}', getVar(match.group(1), settings, section))
+		value = getVars(value, settings, section)
 
 		# Return a string with some tiny processing before
 		return value.replace('\r\n', '\n').replace('\r', '\n').replace('\n_\n', '\n\n').rstrip('_').replace('\n', '\r\n')
@@ -433,8 +433,34 @@ class ReportBackup:
 	def disk(settings, section):
 		"""Disk usage report processing
 		"""
-		# df / /home -hP | column -t
-		return False
+		# Original linux cmd: df / /home -hP | column -t
+		if not settings.has_option(section, 'disks'):
+			disks = ['/']
+		else:
+			disks = settings.get(section, 'disks').split(',')
+
+		if len(disks) == 0:
+			return False
+
+		ret = "%-10s %8s %8s %8s %8s" % ( "Disk", "Size", "Used", "Avail", "Use%" )
+		for disk in disks:
+			try:
+				status = os.statvfs(disk.strip(' '))
+			except (OSError, IOError):
+				print disk
+				status = False
+
+			if status == False or status.f_blocks == 0:
+				continue
+
+			free = status.f_bfree * status.f_frsize
+			size = status.f_blocks * status.f_frsize
+			avail = status.f_bavail * status.f_frsize
+			used = (status.f_blocks - status.f_bfree) * status.f_frsize
+			used_percent = str( round(100. * used / size, 1) ) + '%'
+
+			ret += "\n%-10s %8s %8s %8s %8s" % ( disk, sizeof_fmt(size, ''), sizeof_fmt(used, ''), sizeof_fmt(avail, ''), used_percent )
+		return ret
 
 #
 #
@@ -470,8 +496,8 @@ def dirBackup(settings, section):
 		'--ignore-failed-read',
 		archive_format_parameter,
 		'-cf',
-		output_file, 
-		'-C', 
+		output_file,
+		'-C',
 		'/',
 		folder.lstrip('/')
 	]
@@ -481,7 +507,7 @@ def dirBackup(settings, section):
 		if len(excludes) > 0:
 			print DBG_MSG + "  (exclude: " + ", ".join(excludes) + ")" + DBG_MSG_END
 		return {'file': output_file}
-	
+
 	before_tar = datetime.datetime.now()
 
 	os.chdir('/')
@@ -509,7 +535,7 @@ Directory backup :
  Folder : ''' + folder + '''
  MD5 : ''' + md5_hash + '''
 
-File list : 
+File list :
 '''
 	# TODO
 	'''
@@ -587,7 +613,7 @@ def dpkgBackup(settings, section):
 	if debug:
 		print DBG_MSG + "* Create DPKG selection -> " + output + DBG_MSG_END
 		return True
-	
+
 	# Call dpkg with pip support to write the output into a file
 	dpkg = subprocess.Popen(['dpkg', '--get-selections'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 	dpkg_output = dpkg.communicate()[0]
@@ -681,7 +707,7 @@ def getTextResult(settings, section, data):
 		return data['ret']
 	elif t == 'dpkg':
 		return ""
-		
+
 	if not t in ('folder', 'dir', 'db', 'database', 'svn'):
 		return 0
 
@@ -721,16 +747,25 @@ def getTextResult(settings, section, data):
 #
 #
 #
-def getVar(key, settings, section):
-	"""Get variable content for text report
+def getVars(text, settings, section):
+	"""Replace the special tags by their corresponding variable
 	"""
-	# Formatted date time
-	if key == 'now':
-		return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-	# Direct link to datetime values
-	if key in ('year','month','day','hour','minute','second'):
-		return str(getattr(datetime.datetime.now(), key))
-	return ""
+
+	def getVar(key, settings, section):
+		"""Get variable content for text report"""
+		# Formatted date time
+		if key == 'now':
+			return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+		# Direct link to datetime values
+		if key in ('year','month','day','hour','minute','second'):
+			return str(getattr(datetime.datetime.now(), key))
+		return ""
+
+	#
+	reg = re.compile(r'{([\s\w\.\-\:\%]+)}', re.UNICODE)
+	for match in reg.finditer(text):
+		text = text.replace('{'+match.group(1)+'}', getVar(match.group(1), settings, section))
+	return text
 
 #
 #
@@ -791,7 +826,7 @@ for o, a in optlist:
 		configFile = a
 	elif o == "--debug":
 		debug = True
-		
+
 #
 # Do the backup stuff
 #
