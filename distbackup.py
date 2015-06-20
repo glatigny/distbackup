@@ -149,9 +149,9 @@ class SyncBackup:
 			file_group = '/'
 			if settings.has_option(file_section, 'group'):
 				file_group = settings.get(file_section, 'group')
-						f = x['ret']['file'] if x['ret'].has_key('file') else x['ret']['files']
-						if type(f) is str:
-							files.append((f, file_section, file_group))
+			f = x['ret']['file'] if x['ret'].has_key('file') else x['ret']['files']
+			if type(f) is str:
+				files.append((f, file_section, file_group))
 			if type(f) is list:
 				files = files + [(x, file_section, file_group) for x in f]
 
@@ -718,6 +718,9 @@ def getTextResult(settings, section, data):
 		return "Backup SVN repository \"" + name + "\"" + duration + size
 	return 0
 
+#
+#
+#
 def getVar(key, settings, section):
 	"""Get variable content for text report
 	"""
