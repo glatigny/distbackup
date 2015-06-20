@@ -308,7 +308,7 @@ class SvnBackup:
 		# Debug mode
 		if debug:
 			print DBG_MSG + "* Archive SVN " + svn_folder + " -> " + output_file + DBG_MSG_END
-			return True
+			return { 'file': output_file }
 
 		# Processing the backup
 		ret = subprocess.call(params)
