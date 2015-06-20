@@ -385,10 +385,6 @@ class ReportBackup:
 			txt = False
 			if handler == 'text' or handler[:5] == 'text:':
 				txt = ReportBackup.text(settings, section, handler)
-			elif handler == 'size':
-				txt = ReportBackup.size(settings, section)
-			elif handler == 'stats':
-				txt = ReportBackup.stats(settings, section)
 			elif handler == 'disk':
 				txt = ReportBackup.disk(settings, section)
 
@@ -415,19 +411,6 @@ class ReportBackup:
 
 		# Return a string with some tiny processing before
 		return value.replace('\r\n', '\n').replace('\r', '\n').replace('\n_\n', '\n\n').rstrip('_').replace('\n', '\r\n')
-
-	@staticmethod
-	def size(settings, section):
-		"""Size report processing
-		"""
-		return False
-
-	@staticmethod
-	def stats(settings, section):
-		"""Statistics report processing
-		"""
-		# size on different groups
-		return False
 
 	@staticmethod
 	def disk(settings, section):
@@ -654,6 +637,31 @@ def processBackup(settings, section, result=None):
 #
 #
 #
+def folderSize(folder, suffix='B'):
+	total_size = 0
+	for root, dirs, files in os.walk(folder):
+		total_size += sum(os.path.getsize(os.path.join(root, name)) for name in files)
+	return sizeof_fmt(total_size, suffix) 
+
+#
+#
+#
+def treeSize(folder, suffix='B'):
+	ret = ""
+	l = len(folder)
+	for root, dirs, files in os.walk(folder):
+		ret += folder if folder == root else " " + root[l:]
+		s = sum(os.path.getsize(os.path.join(root, name)) for name in files)
+		if s > 0:
+			ret += " [" + sizeof_fmt(s) + "]"
+		if len(files) > 0:
+			ret += " %d files" % len(files)
+		ret += "\n"
+	return ret.strip("\n")
+
+#
+#
+#
 def sizeof_fmt(num, suffix='B'):
 	"""Display function: Nice file size
 	"""
@@ -759,6 +767,15 @@ def getVars(text, settings, section):
 		# Direct link to datetime values
 		if key in ('year','month','day','hour','minute','second'):
 			return str(getattr(datetime.datetime.now(), key))
+		if key[:5] == 'size:' or key[:5] == 'tree:':
+			folder = key[5:]
+			if folder == 'output':
+				folder = settings.get('default', 'output')
+			elif folder == 'archive':
+				folder = settings.get('default', 'archive')
+			if key[:5] == 'size:':
+				return folderSize(folder)
+			return treeSize(folder)
 		return ""
 
 	#
