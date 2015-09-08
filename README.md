@@ -16,5 +16,5 @@ Python script to backup your Linux distribution
 
 ## License
 
-* Copyright (C) 2015 Obsidev (Glatigny Jerome). All rights reserved.
+* Copyright (C) 2015 Glatigny Jerome. All rights reserved.
 * Distributed under the GNU General Public License version 2 or later
