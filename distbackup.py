@@ -2,7 +2,7 @@
 #
 # distbackup.py: script to backup your Linux distribution
 #
-# https://github.com/obsidev/distbackup
+# https://github.com/glatigny/distbackup
 #
 ####################################################
 
