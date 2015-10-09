@@ -17,6 +17,7 @@ import getopt
 import datetime
 import ConfigParser
 import gzip
+# import glob # Potential inclusion for cleanBackup
 
 ####################################################
 
@@ -544,9 +545,12 @@ Directory backup :
  User : ''' + hostname + '''
  Folder : ''' + folder + '''
  MD5 : ''' + md5_hash + '''
-
-File list :
 '''
+
+    f = open(info_file, 'w')
+    f.write(file_content)
+    f.close()
+
     # TODO
     '''
     find "$dir" -ls | grep -v ".svn" >> "$txt"
@@ -587,24 +591,68 @@ def cleanBackup(settings, section):
     """Clean Backup
     """
 
-    # TODO
-    """
-# Original code from "hdbackup"
-BACKUP_DIR="/home/backup/test/"
-DAYS="5"
-LOCALDAYS="2"
-LOCALMONTH="32"
+    clean_days = 7
+    if settings.has_option(section, 'days'):
+        clean_days = int(settings.get(section, 'days').strip())
+    if clean_days <= 0:
+        clean_days = 7
 
-# SPARSING
-# [archive]_YYYY-MM-DD.[ext]
-# ctime +6 => fichiers d'il y a 6 jours
-find $BACKUP_DIR -name "*_[2-9][0-9][0-9][0-9]-[01][0-9]-[1-3][0-9].*" -daystart -mtime +$DAYS -exec rm {} \;
-find $BACKUP_DIR -name "*_[2-9][0-9][0-9][0-9]-[01][0-9]-0[2-9].*" -daystart -mtime +$DAYS -exec rm {} \;
+    keep_first_days = 0
+    if settings.has_option(section, 'keep_first_days'):
+        keep_first_days = int(settings.get(section, 'keep_first_days').strip())
 
-find $BACKUP_DIR -name "local.svn_[2-9][0-9][0-9][0-9]-[01][0-9]-[1-3][0-9].*" -daystart -mtime +$LOCALDAYS -exec rm {} \;
-find $BACKUP_DIR -name "local.svn_[2-9][0-9][0-9][0-9]-[01][0-9]-0[0-9].*" -daystart -mtime +$LOCALDAYS -exec rm {} \;
-find $BACKUP_DIR -name "local.svn_[2-9][0-9][0-9][0-9]-[01][0-9]-01.*" -daystart -mtime +$LOCALMONTH -exec rm {} \;
-    """
+    base_date = datetime.datetime.today() - datetime.timedelta(days=clean_days)
+    now = datetime.datetime.now()
+    reg = re.compile(r'_(\d{4})-(\d{2})-(\d{2})\.', re.UNICODE)
+
+    archive_folder = settings.get('default', 'archive')
+
+    if settings.has_option(section, 'group'):
+        archive_folder = os.path.join(archive_folder, settings.get(section, 'group'))
+
+    for dirpath, dirs, files in os.walk(archive_folder):
+        for name in dirs + files:
+            fullname = os.path.join(dirpath, name)
+            if not os.path.isfile(fullname):
+                continue
+
+            mtime = 0
+            days = 0
+            try:
+                mtime = datetime.datetime.fromtimestamp(os.path.getmtime(fullname))
+                seconds = now - mtime
+                days, seconds = divmod(abs(int(seconds.total_seconds())), 86400)
+            except:
+                if debug:
+                    print DBG_MSG + "* Error with file " + fullname + DBG_MSG_END
+                else:
+                    print "Cannot access file " + fullname
+
+            # If the file is too recent or we couldn't get his "mtime"
+            if mtime == 0 or mtime >= base_date:
+                continue
+
+            # Test the file name to match the format criteria
+            match = reg.search(name)
+            if match == None:
+                continue
+
+            # Keep files on first day of each month
+            if keep_first_days < 0 and int(match.group(3)) == 1:
+                continue
+
+            # Limit the number of files for the first day of each month
+            if keep_first_days > 0 and int(match.group(3)) == 1 and keep_first_days > days:
+                continue
+
+            if debug:
+                print DBG_MSG + ("* Clean file %s (%d days) " % (fullname, days)) + DBG_MSG_END
+            else:
+                # Delete the file
+                try:
+                    os.remove(fullname)
+                except:
+                    print "Cannot delete file " + fullname
 
     return False
 
@@ -715,7 +763,7 @@ def pretty_timedelta(data):
     hours, seconds = divmod(seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
     if days > 0:
-        return '%dd%dh%dm%ds' % (days, hours, minutes, seconds)
+        return '%dd %dh%dm%ds' % (days, hours, minutes, seconds)
     elif hours > 0:
         return '%dh%dm%ds' % (hours, minutes, seconds)
     elif minutes > 0:
@@ -746,7 +794,7 @@ def getTextResult(settings, section, data):
     elif t == 'dpkg':
         return ""
 
-    if not t in ('folder', 'dir', 'db', 'database', 'svn'):
+    if not t in ['folder', 'dir', 'db', 'database', 'svn', 'sync']:
         return 0
 
     # Name
@@ -780,6 +828,9 @@ def getTextResult(settings, section, data):
         return "Backup " + name + " database" + duration + size
     elif t == 'svn':
         return "Backup SVN repository \"" + name + "\"" + duration + size
+    elif t == 'sync' and name:
+        return "Synchronize with \"" + name + "\"" + duration + size
+
     return 0
 
 #
@@ -796,7 +847,7 @@ def getVars(text, settings, section):
         if key == 'now':
             return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         # Direct link to datetime values
-        if key in ('year','month','day','hour','minute','second'):
+        if key in ['year','month','day','hour','minute','second']:
             return str(getattr(datetime.datetime.now(), key))
         if key.startswith('size:') or key.startswith('tree:'):
             folder = key[5:]
