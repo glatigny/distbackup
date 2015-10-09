@@ -254,7 +254,7 @@ class SyncBackup:
             return True
 
         # Performing the copy
-        ret = subprocess.call(['rsync', '-qt'] + [x[0] for x in seqfiles] + [host])
+        ret = subprocess.call(['rsync', '-qt', '--chmod=o-rwx'] + [x[0] for x in seqfiles] + [host])
         return True
 
     @staticmethod
