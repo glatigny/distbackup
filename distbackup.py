@@ -119,9 +119,9 @@ class DatabaseBackup:
         Should not be called directly
         """
         if not settings.has_option(section, 'database') or settings.get(section, 'database') == 'all':
-            params = ['mongodump', '--out', folder]
+            params = ['mongodump', '--out', '-']
         else:
-            params = ['mongodump', '--db', settings.get(section, 'database'), '--out', folder]
+            params = ['mongodump', '--db', settings.get(section, 'database'), '--out', '-']
 
         # Debug mode
         if debug:
@@ -129,7 +129,12 @@ class DatabaseBackup:
             return {'file': output_file}
 
         # Processing the dump
-        # TODO
+        mongodump = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        dump_output = mongodump.communicate()[0]
+
+        f = gzip.open(output_file, 'wb')
+        f.write(dump_output)
+        f.close()
 
         return {
             'file': output_file
@@ -528,7 +533,7 @@ def dirBackup(settings, section):
     after_tar = datetime.datetime.now()
 
     # Return if we do not have to create the info file
-    if (settings.has_option(section, 'info') and (settings.get(section, 'info').lower().strip() == 'true')):
+    if (not settings.has_option(section, 'info') or (settings.get(section, 'info').lower().strip() != 'true')):
         return {
             'file': output_file
         }
