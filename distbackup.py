@@ -17,6 +17,7 @@ import getopt
 import datetime
 import ConfigParser
 import gzip
+import ftplib
 # import glob # Potential inclusion for cleanBackup
 
 ####################################################
@@ -55,16 +56,19 @@ class DatabaseBackup:
         Should not be called directly
         """
         params = ['mysqldump']
-        if not settings.has_option(section, 'database') or settings.get(section, 'database') == 'all':
-            params.append('-A')
-        else:
-            params.append('--databases')
-            params.append(settings.get(section, 'database'))
-
         if settings.has_option(section, 'user'):
             params.append('--user=' + settings.get(section, 'user'))
         if settings.has_option(section, 'password'):
             params.append('--password=' + settings.get(section, 'password'))
+
+        if settings.has_option(section, 'tables') and settings.has_option(section, 'database'):
+            params.append(settings.get(section, 'database'))
+            params.append(settings.get(section, 'tables'))
+        elif not settings.has_option(section, 'database') or settings.get(section, 'database') == 'all':
+            params.append('-A')
+        else:
+            params.append('--databases')
+            params.append(settings.get(section, 'database'))
 
         # Debug mode
         if debug:
@@ -263,19 +267,33 @@ class SyncBackup:
         return True
 
     @staticmethod
-    def processFtp(settings, section, tuplefiles):
+    def processFtp(settings, section, seqfiles):
         """FTP handler
 
         When rsync is not available...
         """
-        # TODO
-        #import ftplib
-        #session = ftplib.FTP('server.address.com','USERNAME','PASSWORD')
-        #file = open('local_filename','rb')
-        #session.storbinary('STOR dest_filename', file)
-        #file.close()
-        #session.quit()
-        return False
+        if not settings.has_option(section, 'host') or not settings.has_option(section, 'user') or not settings.has_option(section, 'password'):
+            return False
+
+        host = settings.get(section, 'host')
+        user = settings.get(section, 'user')
+        password = settings.get(section, 'password')
+
+        # Debug mode
+        if debug:
+            print DBG_MSG + "* FTP -> " + host + " (" + user + ")\n  " + "\n  ".join([x[0] for x in seqfiles]) + DBG_MSG_END
+            return True
+
+        session = ftplib.FTP(host, user, password)
+        for f in seqfiles:
+            filename = os.path.basename(f[0])
+
+            file = open(f[0], 'rb')
+            session.storbinary('STOR ' + filename, file)
+            file.close()
+
+        session.quit()
+        return True
 
     @staticmethod
     def copy(source, dest):
