@@ -56,6 +56,8 @@ class DatabaseBackup:
         Should not be called directly
         """
         params = ['mysqldump']
+        if settings.has_option(section, 'credentials'):
+            params.append('--defaults-file=' + settings.get(section, 'credentials'))
         if settings.has_option(section, 'user'):
             params.append('--user=' + settings.get(section, 'user'))
         if settings.has_option(section, 'password'):
@@ -63,7 +65,7 @@ class DatabaseBackup:
 
         if settings.has_option(section, 'tables') and settings.has_option(section, 'database'):
             params.append(settings.get(section, 'database'))
-            params.append(settings.get(section, 'tables'))
+            params = params + [x.strip(' ') for x in settings.get(section, 'tables').split(' ')]
         elif not settings.has_option(section, 'database') or settings.get(section, 'database') == 'all':
             params.append('-A')
         else:
