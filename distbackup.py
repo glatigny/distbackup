@@ -70,7 +70,7 @@ class DatabaseBackup:
             params.append('-A')
         else:
             params.append('--databases')
-            params.append(settings.get(section, 'database'))
+            params = params + settings.get(section, 'database').split(' ')
 
         # Debug mode
         if debug:
